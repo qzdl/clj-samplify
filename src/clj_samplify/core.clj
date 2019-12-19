@@ -1,5 +1,6 @@
 (ns clj-samplify.core
-  (:gen-class))
+  (:require [clj-spotify.core :as spotify]
+            [environ.core]))
 
 (defn -main
   "I don't do a whole lot ... yet."

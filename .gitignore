@@ -22,3 +22,4 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+*.spotify.edn
