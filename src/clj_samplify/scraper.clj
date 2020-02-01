@@ -11,6 +11,17 @@
 ;;
 
 
+(defn build-search
+  "Constructs query string params for url & list/vec of terms.
+  Returns url as string.
+
+  e.g.
+  (build-search *search-url* [\"halftime\" \"nas\"])
+  ;; => \"https://whosampled.com/search/?q=+halftime+nas\""
+  [url terms]
+  (str url "?q="
+       (apply str (mapcat #(str "+" %) terms))))
+
 (def ^:dynamic *search-url*
   "https://whosampled.com/search/")
 
@@ -33,42 +44,35 @@
   structure from detail pages"
   "TODO")
 
-(defn build-search
-  "Constructs query string params for url & list/vec of terms.
-  Returns url as string.
-
-  E.g.
-  (build-search *search-url* [\"halftime\" \"nas\"])
-  ;; => \"https://whosampled.com/search/?q=+halftime+nas\""
-  [url terms]
-  (str url "?q="
-       (apply str
-              (mapcat #(str "+" %) terms))))
-
 (defn search->tophit [p]
   (html/select p *tophit-selector*))
 
 (defn anchors->hrefs [a]
-  (map #(first (html/attr-values % :href)) a))
+  (map #(-> % :attrs :href) a))
 
 ;; a generalisation of this exists as `fn-node'
 (defn first-node
+  "[node]: closure on node, returns fn that calls `node pred' arity.
+
+   [node pred]: html/select on node for pred, returns first result"
+
   ([node]
    (fn [pred] (first-node node pred)))
   ([node pred]
    (first (html/select node pred))))
 
-(-> (nsmap
- {:text (shake-fn #(map html/text %))
-  :link (shake-fn anchors->hrefs)})
-    :link/title)
-
 (defn nsmap
   "Namespace all unqualified keys in `m` with `n'.
-  Single arity takes a map of maps, returning inner maps with keys ns'd by the key
-  of "
+
+  [m]: Takes a map of maps, flattens & namespaces inner keys with outer keys.
+       e.g
+  (ns-map {:links {:artist \"/Nas/\" :title \"/Nas/Halftime\"}
+           :text  {:artist \"Nas\"   :title \"Halftime\"}})
+  ;; => {:links/artist \"/Nas/\" :links/title \"/Nas/Halftime\"
+         :text/artist  \"Nas\"   :text/title  \"Halftime\"}
+  "
   ([m]
-   (map #(nsmap (% m) (name %)) (keys m)))
+   (into {} (map #(nsmap (% m) (name %)) (keys m))))
   ([m n]
    (reduce-kv
     (fn [acc k v]
@@ -78,13 +82,6 @@
                      k)]
         (assoc acc new-kw v)))
     {} m)))
-
-(defn shake
-  [p-key]
-
-  (->> (p-key app-map)
-       f-node list f first
-       (assoc {} p-key)))
 
 (defn key-shake
   "Interrogate map(s) for `f' of `pred' given `:key'.
@@ -192,6 +189,11 @@ still a few sketchy things going on behind the scenes, such as the use of
           {:text (shake-fn #(map html/text %))
            :link (shake-fn anchors->hrefs)})
 
+         (-> (nsmap
+              {:text (shake-fn #(map html/text %))
+               :link (shake-fn anchors->hrefs)})
+             :link/title)
+
          (nsmap {:title {"aa" "bb"}})
 
          "Reducing the amount of needless repition in a program is great, but
@@ -247,17 +249,9 @@ like this."
 still lots of reading to do."
          ":threading:composition:")
 
-;; this is the whole program so far
-(->> ["halftime" "nas"]
-     (build-search *search-url*)
-     fetch-url
-     search->tophit
-     track->info
-     :links/title
-     (str *base-url*))
-
 ;;; DETAIL
 ;;
+
 
 (def ^:dynamic *detail-url*
   "https://whosampled.com/Nas/Halftime")
@@ -266,20 +260,38 @@ still lots of reading to do."
   (fetch-url *detail-url*))
 
 (def pred-sampled-in)
-;; (defn section->tracks
-;;   ""
-;;   ([nodes]
-;;    (section->tracks nodes [pred-sampled-in]))
-;;   ([nodes preds]
-;;    (map track->info (html/select nodes
-;;                                  [(concat [] preds)])))
+(defn section->tracks
+  ""
+  ([nodes]
+   (section->tracks nodes [pred-sampled-in]))
+  ([nodes preds]
+   (map track->info
+        (html/select nodes [(concat [] preds)]))))
 
+(def section-header-pred
+  [:section :header.sectionHeader])
 
-(commment "Enlive: Building Predicates
+(defn sibling [l r]
+  (concat l [:+] r))
+
+(sibling [:div] [:p])
+
+(-> *detail-page*
+    (html/select ,, [:section :header.sectionHeader]))
+
+(comment "Enlive: Building Predicates
 I'm attempting to express the following set of constraints
 get")
 
 
+(defn -main
+  [& args]
+  (->> ["halftime" "nas"]
+       (build-search *search-url*)
+       fetch-url
+       search->tophit
+       track->info
+       :links/artist))
 
 ;;; DEV-RESOURCES
 ;;
