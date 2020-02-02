@@ -55,7 +55,6 @@
   "[node]: closure on node, returns fn that calls `node pred' arity.
 
    [node pred]: html/select on node for pred, returns first result"
-
   ([node]
    (fn [pred] (first-node node pred)))
   ([node pred]
@@ -252,7 +251,6 @@ still lots of reading to do."
 ;;; DETAIL
 ;;
 
-
 (def ^:dynamic *detail-url*
   "https://whosampled.com/Nas/Halftime")
 
@@ -260,6 +258,7 @@ still lots of reading to do."
   (fetch-url *detail-url*))
 
 (def pred-sampled-in)
+
 (defn section->tracks
   ""
   ([nodes]
@@ -271,10 +270,18 @@ still lots of reading to do."
 (def section-header-pred
   [:section :header.sectionHeader])
 
-(defn sibling [l r]
+
+; (defn select-sibling
+;   [l r]
+;   (when-let -
+
+(defn sibling
+ "A predicate-level function to express sibling relationships"
+  [l r]
   (concat l [:+] r))
 
 (sibling [:div] [:p])
+
 
 (-> *detail-page*
     (html/select ,, [:section :header.sectionHeader]))
