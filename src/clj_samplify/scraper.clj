@@ -1,5 +1,6 @@
 (ns clj-samplify.scraper
-  (:require [net.cgrand.enlive-html :as html]))
+  (:require [net.cgrand.enlive-html :as html]
+            [clojure.string :as s]))
 
 (def ^:dynamic *base-url* "https://whosampled.com/")
 
@@ -254,10 +255,10 @@ still lots of reading to do."
 (def ^:dynamic *detail-url*
   "https://whosampled.com/Nas/Halftime")
 
-(def ^:dynamic *detail-page*
+(def ^:dynamic *detail-p [] age*
   (fetch-url *detail-url*))
 
-(def pred-sampled-in)
+(def pred-section-header)
 
 (defn section->tracks
   ""
@@ -267,21 +268,82 @@ still lots of reading to do."
    (map track->info
         (html/select nodes [(concat [] preds)]))))
 
-(def section-header-pred
+(def section-header-span?
+  [:section :header.sectionHeader :span])
+(def section-header?
   [:section :header.sectionHeader])
 
+(comment "Siblings"
 
-; (defn select-sibling
-;   [l r]
-;   (when-let -
+         (defn to-sibling
+           "A predicate-level function to express sibling relationships"
+           [l r]
+           (concat l [:+] r))
 
-(defn sibling
- "A predicate-level function to express sibling relationships"
-  [l r]
-  (concat l [:+] r))
+         (defn from-sibling [p]
+           (filter #(not= (first %) :+)
+                   (partition-by #(= % :+) p)))
 
-(sibling [:div] [:p])
+         (defn select-sibling
+           ""
+           ([nodes l+r]
+            (let [[l r] (from-sibling l+r)]
+              (select-sibling nodes l r)))
+           ([nodes l r]
+            (when-let [sibling-pre (html/select nodes l)]
+              (-> (html/select nodes (butlast l))
+                  (html/select ,, r)))))
 
+         (-> (to-sibling [:div] [:p])
+             from-sibling)
+
+         (select-sibling *detail-page* [:section :header.sectionHeader :+ :div.list]))
+
+(def directions {:contains   "contains samples of"
+                 :sampled-in "sampled in"
+                 :covered-in "covered in"
+                 :remixed-in "remixed in"})
+
+(defn ht-includes?
+  ([ss]
+   (fn [n] (ht-includes? n ss)))
+  ([n ss]
+   (let [txt (s/lower-case (if (map? n) (html/text n) n))]
+     (s/includes? txt ss))))
+
+(let [nodes   *detail-page*
+      headers (html/select nodes section-header?)
+      dir-pred (:contains directions)]
+  (filter (ht-includes? dir-pred) headers))
+
+(defn select-where
+  ([m]
+   (fn [p] (select-where m p)))
+  ([m p]
+   (let [[pred where] (filter #(not= (first %) :where) (partition-by #(= % :where) p))
+         [el w-pred]  (first where)
+         parent (html/select m pred)
+         where? (fn [n] (not-empty (filter w-pred (html/select n el))))]
+     (filter where? parent))))
+
+(->> [:section
+      :where [[:header.sectionHeader :span] (ht-includes? (:contains directions))]]
+     (select-where *detail-page*))
+
+(-> (select-where *detail-page* [:section
+                                 :where [[:span :header.sectionHeader] (ht-includes? (:contains directions))]])
+    (html/select ,, [:div.list]))
+
+(let [parent (html/select *detail-page* [:section])
+      p [:header.sectionHeader :span]]
+  (filter (fn [n] (ht-includes? (html/select n p) (:contains directions))) parent))
+
+;; get section headers, filter nodes for those on which direction substr matches
+
+
+(filter #(s/includes? (s/lower-case (html/text %))
+                      (:contains directions))
+        (html/select *detail-page* section-header-span?))
 
 (-> *detail-page*
     (html/select ,, [:section :header.sectionHeader]))
@@ -289,7 +351,6 @@ still lots of reading to do."
 (comment "Enlive: Building Predicates
 I'm attempting to express the following set of constraints
 get")
-
 
 (defn -main
   [& args]

@@ -8,7 +8,8 @@
             [ring.adapter.jetty :as ringj]
             [ring.util.response :as ringr]
             [ring.middleware.params :as ringp]
-            [ring.middleware.keyword-params :as ringkp]))
+            [ring.middleware.keyword-params :as ringkp]
+            [clojure.string :as str]))
 
 (defn get-env []
   (edn/read-string (slurp ".spotify.edn")))
@@ -44,3 +45,53 @@
 
 (run-server)
 (check-creds (lm/oauth-token :spotify))
+(def token (lm/oauth-token :spotify))
+
+;;====================================
+;;                                  ;;
+;; Scratch Investigation of spotify ;;
+;;                                  ;;
+;;====================================
+
+
+;; :progress_ms
+(spotify/get-users-currently-playing-track {} (lm/oauth-token :spotify))
+
+(spotify/seek-to-position-in-currently-playing-track {:position_ms 500} token)
+
+(defn search-type [v]
+  (str/join "," v))
+(search-type ['artist 'song])
+
+(def ^:dynamic *artist-res*
+  (spotify/search {:q "" :type (search-type ['album])} token))
+
+(defn ssearch [q t]
+  spotify/search {:q q :type t} token)
+
+(def ^:dynamic *album-res*
+  (spotify/search {:q "train of thought reflection eternal" :type (search-type ['album])} token))
+
+(def ^:dynamic *track-res*
+  (spotify/search {:q "brown skin lady mos def" :type (search-type ['track])} token))
+
+(def ^:dynamic *playlist-res*
+  (spotify/search {:q "train of thought reflection eternal" :type (search-type ['album])} token))
+
+(->> *album-res*
+     :albums
+     :items
+     (map expand-album))
+
+(defn expand-album [a]
+  (let [{:keys [name type id uri artists]} a]
+    [name type id uri (map :name artists)]))
+
+(defn expand-artist [ar-vec]
+  (map (fn [a] (let [{:name }])))
+               )
+
+(->> *track-res*
+     :tracks
+     :items
+     (map expand-album))
